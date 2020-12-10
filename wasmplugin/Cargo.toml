@@ -9,6 +9,9 @@ crate-type = ["cdylib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.release]
+lto = "true"
+
 [dependencies]
 veloren_api = {path = "../veloren_api"}
 serde = {version = "1.0.118", features = ["derive"]}
