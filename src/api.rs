@@ -26,11 +26,24 @@ impl Plugin {
     }
 
     pub fn try_execute<T>(&self, event_name: &str, request: &PreparedEventQuery<T>) -> Option<T::Response> where T: events::Event {
+        flame::start("check function names");
         if !self.events.iter().any(|x| x == event_name) {
             return None;
         }
-        let bytes = execute_raw(&self.wasm_instance.context().memory(0),&self.wasm_instance.exports.get(event_name).ok()?, &request.bytes).ok()?;
-        bincode::deserialize(&bytes).ok()
+        flame::end("check function names");
+        flame::start("get function function");
+        let func = self.wasm_instance.exports.get(event_name).ok()?;
+        flame::end("get function function");
+        flame::start("get memory");
+        let mem = self.wasm_instance.context().memory(0);
+        flame::end("get memory");
+        flame::start("execute raw");
+        let bytes = execute_raw(&mem,&func, &request.bytes).ok()?;
+        flame::end("execute raw");
+        flame::start("execute deserialize");
+        let tmp = bincode::deserialize(&bytes).ok();
+        flame::end("execute deserialize");
+        tmp
     }
 }
 
@@ -60,22 +73,35 @@ pub fn execute<'a,T>(memory: &Memory, function: &Function,input: &impl serde::Se
 }
 
 pub fn execute_raw(memory: &Memory, function: &Function,bytes: &[u8]) -> Result<Vec<u8>, &'static str> {
+    flame::start("get memory view");
     let view = memory.view::<u8>();
+    flame::end("get memory view");
     let len = bytes.len();
+    flame::start("memory write");
     for (cell, byte) in view[MEMORY_POS..len + MEMORY_POS].iter().zip(bytes.iter()) {
         cell.set(*byte)
     }
+    flame::end("memory write");
+    flame::start("call");
     let start = function.call(MEMORY_POS as i32, len as u32).expect("Failed to execute function") as usize;
+    flame::end("call");
+    flame::start("get new view");
     let new_view = memory.view::<u8>();
+    flame::end("get new view");
     let mut new_len_bytes = [0u8;4];
+    flame::start("get new view");
     for i in 0..4 {
         new_len_bytes[i] = new_view.get(i + 1).map(|c| c.get()).unwrap_or(0);
     }
+    flame::end("get new view");
     let new_len = u32::from_ne_bytes(new_len_bytes) as usize;
-    Ok(new_view[start..start + new_len]
-        .iter()
-        .map(|c|c.get())
-        .collect())
+    flame::start("view to data");
+    let tmp = new_view[start..start + new_len]
+    .iter()
+    .map(|c|c.get())
+    .collect();
+    flame::end("view to data");
+    Ok(tmp)
 }
 
 pub fn execute_event<T>(memory: &Memory, function: &Function<'_>, event: &T) -> Result<T::Response, &'static str> where T: events::Event{

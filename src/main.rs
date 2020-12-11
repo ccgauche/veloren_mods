@@ -1,5 +1,5 @@
 
-use std::time::Instant;
+use std::{fs::File, time::Instant};
 
 use api::{Plugin, PreparedEventQuery};
 use wasmer_runtime::*;
@@ -27,4 +27,6 @@ fn main() {
     let before = Instant::now();
     plugin.try_execute("on_player_join", &prepared);
     println!("WASM call made in {:#?}", before.elapsed());
+    
+    flame::dump_html(&mut File::create("flame-graph.html").unwrap()).unwrap();
 }
