@@ -26,6 +26,7 @@ impl Plugin {
     }
 
     pub fn try_execute<T>(&self, event_name: &str, request: &PreparedEventQuery<T>) -> Option<T::Response> where T: events::Event {
+        flame::start("try execute");
         flame::start("check function names");
         if !self.events.iter().any(|x| x == event_name) {
             return None;
@@ -43,6 +44,7 @@ impl Plugin {
         flame::start("execute deserialize");
         let tmp = bincode::deserialize(&bytes).ok();
         flame::end("execute deserialize");
+        flame::end("try execute");
         tmp
     }
 }
